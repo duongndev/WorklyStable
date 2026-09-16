@@ -244,12 +244,8 @@ const LoginScreen = () => {
           if (tokens?.refreshToken) {
             await saveSecureRefreshToken(tokens.refreshToken);
           }
-          const normalizedEmail = email.trim().toLowerCase();
-          await saveBiometricCredentials(normalizedEmail, password.trim());
-          await saveSecureBiometricCredentials(normalizedEmail, password.trim());
-          setHasBiometricCredentials(true);
         } catch (saveErr) {
-          console.error('Lỗi lưu thông tin sinh trắc học:', saveErr);
+          console.error('Lỗi lưu refresh token:', saveErr);
         }
 
         updateFCMTokenInBackground();
