@@ -3,7 +3,7 @@ import { Platform } from 'react-native';
 import { refreshTokenApi } from '../services/tokenService';
 import { getRefreshToken, saveTokens, removeTokens, getAccessToken } from '../services/storageService';
 
-import { API_URL } from '../config/apiConfig';
+import { API_URL } from './apiConfig';
 
 const axiosClient = axios.create({
   baseURL: API_URL,

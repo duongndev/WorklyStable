@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { jwtDecode } from 'jwt-decode';
-import { API_URL } from '../config/apiConfig';
+import { API_URL } from '../api/apiConfig';
 
 export const BASE_URL = API_URL;
 
