@@ -1,26 +1,48 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { saveSecureRefreshToken } from './secureStorageService';
 
+/**
+ * Lưu accessToken và refreshToken vào AsyncStorage (và đồng bộ Keychain nếu có refreshToken)
+ * Hỗ trợ cả 2 cách gọi:
+ * - saveTokens(accessToken, refreshToken)
+ * - saveTokens({ accessToken, refreshToken })
+ */
 export const saveTokens = async (accessToken, refreshToken) => {
   try {
-    console.log('saveTokens invoked with:', { accessToken: !!accessToken, refreshToken: !!refreshToken });
-    if (accessToken != null) {
-      await AsyncStorage.setItem('accessToken', String(accessToken));
-    } else {
-      console.log('saveTokens: accessToken is null or undefined');
+    let access = accessToken;
+    let refresh = refreshToken;
+
+    if (typeof accessToken === 'object' && accessToken !== null) {
+      access = accessToken.accessToken;
+      refresh = refreshToken || accessToken.refreshToken;
     }
-    
-    if (refreshToken != null) {
-      await AsyncStorage.setItem('refreshToken', String(refreshToken));
-      console.log('saveTokens: refreshToken saved');
-    } else {
-      console.log('saveTokens: refreshToken is null or undefined');
+
+    const promises = [];
+    if (access != null && access !== '') {
+      promises.push(AsyncStorage.setItem('accessToken', String(access)));
+    }
+    if (refresh != null && refresh !== '') {
+      promises.push(AsyncStorage.setItem('refreshToken', String(refresh)));
+    }
+
+    if (promises.length > 0) {
+      await Promise.all(promises);
+    }
+
+    // Đồng bộ an toàn sang Keychain cho luồng đăng nhập sinh trắc học
+    if (refresh != null && refresh !== '') {
+      try {
+        await saveSecureRefreshToken(String(refresh));
+      } catch (keychainError) {
+        // Keychain có thể không khả dụng trên môi trường giả lập hoặc chưa cấu hình
+        console.log('Error saving refresh token to Keychain:', keychainError);
+      }
     }
   } catch (error) {
     console.error('Error saving tokens:', error);
     throw error;
   }
-}
-
+};
 
 export const getAccessToken = async () => {
   try {
@@ -40,6 +62,18 @@ export const getRefreshToken = async () => {
   }
 };
 
+export const getTokens = async () => {
+  try {
+    const [accessToken, refreshToken] = await Promise.all([
+      AsyncStorage.getItem('accessToken'),
+      AsyncStorage.getItem('refreshToken'),
+    ]);
+    return { accessToken: accessToken || null, refreshToken: refreshToken || null };
+  } catch (error) {
+    console.log('Error getting tokens from storage:', error);
+    return { accessToken: null, refreshToken: null };
+  }
+};
 
 // fcm token
 export const saveFCMToken = async token => {
@@ -62,12 +96,17 @@ export const getFCMToken = async () => {
   }
 };
 
-
 export const removeTokens = async () => {
   try {
-    await AsyncStorage.removeItem('accessToken');
-    await AsyncStorage.removeItem('refreshToken');
-    await AsyncStorage.removeItem('fcmToken');
+    await Promise.all([
+      AsyncStorage.removeItem('accessToken'),
+      AsyncStorage.removeItem('refreshToken'),
+    ]);
+    try {
+      await saveSecureRefreshToken(null);
+    } catch (keychainError) {
+      // Bỏ qua lỗi Keychain khi xóa
+    }
     console.log('Tokens đã được xóa thành công khỏi AsyncStorage');
   } catch (error) {
     console.error('Error removing tokens:', error);

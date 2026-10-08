@@ -3,9 +3,7 @@ import { Platform } from 'react-native';
 import { refreshTokenApi } from '../services/tokenService';
 import { getRefreshToken, saveTokens, removeTokens, getAccessToken } from '../services/storageService';
 
-// const API_URL = Platform.OS === 'android' ? 'http://10.0.2.2:8080/api' : 'http://localhost:8080/api';
-
-const API_URL = 'https://serverworklystable.onrender.com/api'
+import { API_URL } from '../config/apiConfig';
 
 const axiosClient = axios.create({
   baseURL: API_URL,
@@ -117,17 +115,21 @@ axiosClient.interceptors.response.use(
       const newRefreshToken = payload?.refreshToken || payload?.tokens?.refreshToken;
 
       if (response.success && newAccessToken) {
-        // Save new tokens
-        await saveTokens(newAccessToken, newRefreshToken);
+        const finalRefreshToken = newRefreshToken || refreshToken;
 
-        // Update Redux store
+        // Save new tokens
+        await saveTokens(newAccessToken, finalRefreshToken);
+
+        // Update Redux store (cấu trúc payload.tokens khớp với authSlice)
         if (storeInstance) {
           storeInstance.dispatch({
             type: 'auth/refreshToken/fulfilled',
             payload: {
-              accessToken: newAccessToken,
-              refreshToken: newRefreshToken
-            }
+              tokens: {
+                accessToken: newAccessToken,
+                refreshToken: finalRefreshToken,
+              },
+            },
           });
         }
 

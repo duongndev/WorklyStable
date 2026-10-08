@@ -100,11 +100,16 @@ export const getUserInfoAction = createAsyncThunk(
       const accessToken = state?.auth?.tokens?.accessToken;
       const response = await getProfileApi(accessToken);
 
-      if (response.success) {
-        // Hỗ trợ cả 2 format: { data: { user } } và { user }
-        const user = response.data?.user || response.user;
+      if (response && response.success !== false) {
+        // Hỗ trợ cả các format: { data: user }, { data: { user } }, { user }
+        const rawData = response.data !== undefined ? response.data : response;
+        const user =
+          rawData?.user ||
+          (rawData && (rawData._id || rawData.id || rawData.email || rawData.role) ? rawData : null) ||
+          response.user;
 
         if (!user) {
+          console.warn('Profile response thiếu thông tin user:', JSON.stringify(response).slice(0, 200));
           return rejectWithValue('Profile response thiếu thông tin user');
         }
 

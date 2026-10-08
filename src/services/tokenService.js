@@ -1,11 +1,8 @@
 import axios from 'axios';
-import { Platform } from 'react-native';
-import {jwtDecode} from 'jwt-decode';
+import { jwtDecode } from 'jwt-decode';
+import { API_URL } from '../config/apiConfig';
 
-export const BASE_URL =
-  Platform.OS === 'android'
-    ? 'http://10.0.2.2:8080/api'
-    : 'http://localhost:8080/api';
+export const BASE_URL = API_URL;
 
 /**
  * Gọi API refresh token — dùng axios thuần, không qua axiosClient
@@ -29,20 +26,22 @@ export const refreshTokenApi = async (refreshToken) => {
 };
 
 export const isTokenExpired = (tokens) => {
-  if (!tokens?.accessToken) {
+  const token = typeof tokens === 'string' ? tokens : tokens?.accessToken;
+  if (!token) {
     console.log('Token is null or undefined.');
     return true;
   }
 
   try {
-    const decoded = jwtDecode(tokens.accessToken);
+    const decoded = jwtDecode(token);
     if (typeof decoded?.exp === 'undefined') {
       console.log('Token does not contain an expiration time (exp).');
       return true;
     }
 
     const currentTime = Math.floor(Date.now() / 1000);
-    return decoded.exp < currentTime;
+    // Buffer 30 giây để tránh tình trạng token vừa hết hạn trong lúc gửi request
+    return decoded.exp < currentTime + 30;
   } catch (error) {
     console.error('Error decoding token or token is invalid:', error);
     return true;

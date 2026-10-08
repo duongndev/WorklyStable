@@ -13,6 +13,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { logoutUser, clearError, clearMessage } from '../../redux/auth/authSlice';
 import { getUserInfoAction, refreshTokenAction } from '../../redux/auth/authAction';
 import { isTokenExpired } from '../../services/tokenService';
+import { getTokens } from '../../services/storageService';
 import { navigateBasedOnRole } from '../../utils/navigationHelpers';
 // ─── PulsingDot ───────────────────────────────────────────────────────────────
 const PulsingDot = ({ pulseAnim }) => {
@@ -105,7 +106,7 @@ const SplashScreen = () => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
   const navigation = useNavigation();
-  const { tokens, profileLoading } = useSelector(state => state.auth);
+  const { tokens, profileLoading, user: cachedUser } = useSelector(state => state.auth);
   const dispatch = useDispatch();
   const navigationRef = useRef(navigation);
   const dispatchRef = useRef(dispatch);
@@ -141,14 +142,28 @@ const SplashScreen = () => {
 
     const checkTokenAndNavigate = async () => {
       console.log('SplashScreen: Kiểm tra token...');
-      if (!tokens) {
+      let currentTokens = tokens;
+
+      // Fallback: nếu Redux chưa kịp hydrate hoặc bị mất, kiểm tra AsyncStorage
+      if (!currentTokens?.accessToken) {
+        const storedTokens = await getTokens();
+        if (storedTokens?.accessToken) {
+          currentTokens = storedTokens;
+          dispatch({
+            type: 'auth/refreshToken/fulfilled',
+            payload: { tokens: currentTokens },
+          });
+        }
+      }
+
+      if (!currentTokens?.accessToken) {
         console.log('SplashScreen: Không tìm thấy token, điều hướng đến Auth');
         navigation.replace('Auth');
         return;
       }
       try {
         // Kiểm tra token hết hạn
-        if (isTokenExpired(tokens)) {
+        if (isTokenExpired(currentTokens)) {
           console.log('SplashScreen: Token hết hạn, đang thử làm mới...');
 
           const refreshResult = await dispatch(refreshTokenAction());
@@ -165,33 +180,41 @@ const SplashScreen = () => {
           }
         }
 
-        // Nếu có token hợp lệ, kiểm tra xem đã có thông tin user chưa
+        // Nếu có token hợp lệ, lấy thông tin user mới nhất
         console.log('Đang lấy thông tin user...');
         const resultAction = await dispatch(getUserInfoAction());
 
         if (getUserInfoAction.fulfilled.match(resultAction)) {
-          const { user } = resultAction.payload;
+          const user = resultAction.payload?.user;
+          const targetRole = user?.role || cachedUser?.role;
 
-          if (!user) {
-            console.warn('SplashScreen: User payload bị rỗng');
-            dispatch(logoutUser());
-            dispatch(clearError());
-            dispatch(clearMessage());
-            navigation.replace('Auth');
+          if (targetRole) {
+            console.log('Lấy thông tin user thành công, role:', targetRole);
+            navigateBasedOnRole(navigation, targetRole, handleUnknownRole);
             return;
           }
-
-          console.log('Lấy thông tin user thành công', user?.role);
-          navigateBasedOnRole(navigation, user.role, handleUnknownRole);
-        } else {
-          console.log('Lấy thông tin user thất bại');
-          dispatch(logoutUser());
-          dispatch(clearError());
-          dispatch(clearMessage());
-          navigation.replace('Auth');
         }
+
+        // Nếu API profile lỗi tạm thời (offline / mạng yếu) nhưng Redux đã có user từ trước
+        if (cachedUser?.role) {
+          console.log('Dùng cachedUser từ phiên trước để điều hướng:', cachedUser.role);
+          navigateBasedOnRole(navigation, cachedUser.role, handleUnknownRole);
+          return;
+        }
+
+        // Không có bất kỳ thông tin vai trò nào -> điều hướng về Auth
+        console.log('Không xác định được người dùng, điều hướng về Auth');
+        dispatch(logoutUser());
+        dispatch(clearError());
+        dispatch(clearMessage());
+        navigation.replace('Auth');
       } catch (err) {
         console.error('Lỗi khi kiểm tra token:', err);
+        if (cachedUser?.role) {
+          console.log('Ngoại lệ xảy ra nhưng đã có cachedUser, tiếp tục vào app');
+          navigateBasedOnRole(navigation, cachedUser.role, handleUnknownRole);
+          return;
+        }
         dispatch(logoutUser());
         dispatch(clearError());
         dispatch(clearMessage());

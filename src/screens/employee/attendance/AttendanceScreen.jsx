@@ -69,12 +69,6 @@ const STATUS_CONFIG = {
 
 const WEEKDAY_NAMES = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
 
-const formatTime = (timeVal) => {
-  if (!timeVal) return '--:--';
-  const m = moment(timeVal);
-  return m.isValid() ? m.format('HH:mm') : '--:--';
-};
-
 const AttendanceScreen = () => {
   const navigation = useNavigation();
   const dispatch = useDispatch();
@@ -84,7 +78,6 @@ const AttendanceScreen = () => {
   );
 
   const [currentMonth, setCurrentMonth] = useState(moment());
-  const [viewMode, setViewMode] = useState('calendar'); // 'calendar' | 'list'
   const [selectedDay, setSelectedDay] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -227,6 +220,7 @@ const AttendanceScreen = () => {
               const record = attendanceMap[dayItem.dateStr];
               const hasRecord = Boolean(record);
               const status = record?.status ? STATUS_CONFIG[record.status] : null;
+              console.log('Render Day:', dayItem.dateStr, 'Record:', record);
 
               return (
                 <View key={dIdx} style={styles.dayColWrapper}>
@@ -309,94 +303,6 @@ const AttendanceScreen = () => {
     </View>
   );
 
-  // ── Render List View ──
-  const renderListView = () => {
-    if (!history || history.length === 0) {
-      return (
-        <View style={styles.emptyContainer}>
-          <Icon name="calendar-blank-outline" size={60} color="#CBD5E1" />
-          <Text style={styles.emptyText}>Chưa có bản ghi chấm công trong tháng này</Text>
-        </View>
-      );
-    }
-
-    return (
-      <View style={styles.listContainer}>
-        {history.map((item) => {
-          const status = STATUS_CONFIG[item.status] || STATUS_CONFIG.present;
-          const checkIn = item.checkIn || {};
-          const checkOut = item.checkOut || {};
-
-          return (
-            <TouchableOpacity
-              key={item._id || item.date}
-              style={styles.card}
-              activeOpacity={0.7}
-              onPress={() => setSelectedDay(item)}
-            >
-              <View style={styles.cardTop}>
-                <View style={styles.cardDateBox}>
-                  <Icon name="calendar" size={18} color="#2563EB" />
-                  <Text style={styles.cardDateText}>
-                    {moment(item.date).format('dddd, DD/MM/YYYY')}
-                  </Text>
-                </View>
-                <View style={[styles.statusBadge, { backgroundColor: status.bg }]}>
-                  <Icon name={status.icon} size={14} color={status.color} />
-                  <Text style={[styles.statusBadgeText, { color: status.color }]}>
-                    {status.label}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.divider} />
-
-              <View style={styles.timeGrid}>
-                <View style={styles.timeCol}>
-                  <Text style={styles.timeTitle}>Vào (Check-in)</Text>
-                  <Text style={styles.timeValue}>{formatTime(checkIn.time)}</Text>
-                  {checkIn.isLate ? (
-                    <View style={styles.warnTag}>
-                      <Text style={styles.warnTagText}>Trễ {checkIn.minutesLate}p</Text>
-                    </View>
-                  ) : null}
-                </View>
-
-                <View style={styles.timeColDivider} />
-
-                <View style={styles.timeCol}>
-                  <Text style={styles.timeTitle}>Ra (Check-out)</Text>
-                  <Text style={styles.timeValue}>{formatTime(checkOut.time)}</Text>
-                  {checkOut.isEarlyLeave ? (
-                    <View style={styles.warnTag}>
-                      <Text style={styles.warnTagText}>Sớm {checkOut.minutesEarly}p</Text>
-                    </View>
-                  ) : null}
-                </View>
-
-                <View style={styles.timeColDivider} />
-
-                <View style={styles.timeCol}>
-                  <Text style={styles.timeTitle}>Tổng giờ làm</Text>
-                  <Text style={styles.hoursValue}>{item.totalWorkHours || 0} giờ</Text>
-                </View>
-              </View>
-
-              {checkIn.location?.address ? (
-                <View style={styles.addressRow}>
-                  <Icon name="map-marker-outline" size={14} color="#64748B" />
-                  <Text style={styles.addressText} numberOfLines={1}>
-                    {checkIn.location.address}
-                  </Text>
-                </View>
-              ) : null}
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-    );
-  };
-
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
       <Header
@@ -473,47 +379,6 @@ const AttendanceScreen = () => {
           </View>
         </View>
 
-        {/* View Mode Toggle Switch */}
-        <View style={styles.viewToggleRow}>
-          <TouchableOpacity
-            style={[styles.toggleBtn, viewMode === 'calendar' && styles.toggleBtnActive]}
-            onPress={() => setViewMode('calendar')}
-          >
-            <Icon
-              name="calendar-month"
-              size={18}
-              color={viewMode === 'calendar' ? '#2563EB' : '#64748B'}
-            />
-            <Text
-              style={[
-                styles.toggleBtnText,
-                viewMode === 'calendar' && styles.toggleBtnTextActive,
-              ]}
-            >
-              Lịch tháng
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.toggleBtn, viewMode === 'list' && styles.toggleBtnActive]}
-            onPress={() => setViewMode('list')}
-          >
-            <Icon
-              name="format-list-bulleted"
-              size={18}
-              color={viewMode === 'list' ? '#2563EB' : '#64748B'}
-            />
-            <Text
-              style={[
-                styles.toggleBtnText,
-                viewMode === 'list' && styles.toggleBtnTextActive,
-              ]}
-            >
-              Danh sách
-            </Text>
-          </TouchableOpacity>
-        </View>
-
         {/* Loading Indicator */}
         {loading && (
           <View style={styles.centerLoading}>
@@ -522,8 +387,8 @@ const AttendanceScreen = () => {
           </View>
         )}
 
-        {/* Main Content: Calendar or List */}
-        {viewMode === 'calendar' ? renderCalendar() : renderListView()}
+        {/* Main Content: Calendar */}
+        {renderCalendar()}
       </ScrollView>
 
       {/* Day Detail Modal */}
@@ -721,39 +586,6 @@ const styles = ScaledSheet.create({
     color: '#64748B',
     fontWeight: '500',
   },
-  viewToggleRow: {
-    flexDirection: 'row',
-    backgroundColor: '#E2E8F0',
-    borderRadius: '12@ms',
-    padding: '4@ms',
-    marginBottom: '12@vs',
-  },
-  toggleBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: '8@vs',
-    borderRadius: '10@ms',
-  },
-  toggleBtnActive: {
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  toggleBtnText: {
-    fontSize: '13@ms',
-    color: '#64748B',
-    fontWeight: '600',
-    marginLeft: '6@ms',
-  },
-  toggleBtnTextActive: {
-    color: '#2563EB',
-    fontWeight: '700',
-  },
   centerLoading: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -885,117 +717,6 @@ const styles = ScaledSheet.create({
     fontSize: '11@ms',
     color: '#64748B',
     fontWeight: '500',
-  },
-  listContainer: {},
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: '14@ms',
-    padding: '16@ms',
-    marginBottom: '12@vs',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  cardTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  cardDateBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  cardDateText: {
-    fontSize: '14@ms',
-    fontWeight: '700',
-    color: '#0F172A',
-    marginLeft: '6@ms',
-    textTransform: 'capitalize',
-  },
-  statusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: '8@ms',
-    paddingVertical: '3@vs',
-    borderRadius: '8@ms',
-  },
-  statusBadgeText: {
-    fontSize: '11@ms',
-    fontWeight: '600',
-    marginLeft: '4@ms',
-  },
-  divider: {
-    height: 1,
-    backgroundColor: '#F1F5F9',
-    marginVertical: '10@vs',
-  },
-  timeGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  timeCol: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  timeColDivider: {
-    width: 1,
-    height: '28@vs',
-    backgroundColor: '#F1F5F9',
-  },
-  timeTitle: {
-    fontSize: '11@ms',
-    color: '#64748B',
-    marginBottom: '2@vs',
-  },
-  timeValue: {
-    fontSize: '14@ms',
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  hoursValue: {
-    fontSize: '14@ms',
-    fontWeight: '700',
-    color: '#2563EB',
-  },
-  warnTag: {
-    backgroundColor: '#FEF2F2',
-    paddingHorizontal: '6@ms',
-    paddingVertical: '1@vs',
-    borderRadius: '4@ms',
-    marginTop: '2@vs',
-  },
-  warnTagText: {
-    fontSize: '9@ms',
-    color: '#DC2626',
-    fontWeight: '600',
-  },
-  addressRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: '8@vs',
-    paddingTop: '6@vs',
-    borderTopWidth: 1,
-    borderTopColor: '#F8FAFC',
-  },
-  addressText: {
-    fontSize: '11@ms',
-    color: '#64748B',
-    marginLeft: '4@ms',
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: '60@vs',
-  },
-  emptyText: {
-    fontSize: '14@ms',
-    color: '#94A3B8',
-    marginTop: '12@vs',
   },
   modalOverlay: {
     flex: 1,

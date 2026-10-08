@@ -126,7 +126,10 @@ const authSlice = createSlice({
         state.error = null;
       })
       .addCase(refreshTokenAction.fulfilled, (state, action) => {
-        state.tokens = action.payload.tokens;
+        state.tokens = action.payload?.tokens || {
+          accessToken: action.payload?.accessToken,
+          refreshToken: action.payload?.refreshToken,
+        };
         state.error = null;
       })
       .addCase(refreshTokenAction.rejected, (state, action) => {

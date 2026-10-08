@@ -5,7 +5,6 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ScaledSheet } from 'react-native-size-matters';
 import { ThemeProvider } from './src/contexts/ThemeContext';
 import { store } from './src/redux/store';
-import { Provider } from 'react-redux';
 import AppNavigator from './src/navigations/AppNavigator';
 import { getApp } from '@react-native-firebase/app';
 import messaging, {
@@ -213,12 +212,10 @@ const App = () => {
     <AlertNotificationRoot>
       <ThemeProvider>
         <SafeAreaProvider>
-          <Provider store={store}>
-            <GestureHandlerRootView style={styles.container}>
-              <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
-              <AppNavigator />
-            </GestureHandlerRootView>
-          </Provider>
+          <GestureHandlerRootView style={styles.container}>
+            <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
+            <AppNavigator />
+          </GestureHandlerRootView>
         </SafeAreaProvider>
       </ThemeProvider>
     </AlertNotificationRoot>
