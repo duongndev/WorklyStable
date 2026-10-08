@@ -107,29 +107,10 @@ const AdminDashboardScreen = () => {
           />
         }
       >
-        {/* Admin Welcome Banner */}
-        <View style={styles.welcomeCard}>
-          <View>
-            <Text style={styles.welcomeSub}>Bảng điều khiển Quản trị viên</Text>
-            <Text style={styles.welcomeName}>
-              Xin chào, {user?.fullName || 'Quản trị viên'}
-            </Text>
-          </View>
-          <View style={styles.adminBadge}>
-            <Icon name="shield-crown" size={16} color="#F59E0B" />
-            <Text style={styles.adminBadgeText}>ADMIN</Text>
-          </View>
-        </View>
-
         {/* 1. Hàng Lối Tắt Đơn Từ Cần Duyệt */}
         <View style={styles.pendingCard}>
           <View style={styles.pendingHeader}>
             <Text style={styles.pendingTitle}>ĐƠN TỪ CẦN PHÊ DUYỆT</Text>
-            <View style={styles.totalBadge}>
-              <Text style={styles.totalBadgeText}>
-                {overview.pendingTotal || 0} việc
-              </Text>
-            </View>
           </View>
 
           <View style={styles.pendingRow}>
@@ -257,38 +238,6 @@ const AdminDashboardScreen = () => {
           </View>
         </View>
 
-        {/* 4. Thống Kê Quỹ Lương & Làm Thêm */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Icon name="cash-multiple" size={20} color="#16A34A" />
-            <Text style={styles.sectionTitle}>
-              Chi phí nhân sự tháng {moment().format('M/YYYY')}
-            </Text>
-          </View>
-
-          <View style={styles.payrollCard}>
-            <View style={styles.payrollRow}>
-              <Text style={styles.payrollKey}>Tổng chi lương thực tế:</Text>
-              <Text style={styles.payrollVal}>
-                {formatCurrency(payroll.totalNetSalary)}
-              </Text>
-            </View>
-            <View style={styles.payrollRow}>
-              <Text style={styles.payrollKey}>Tổng quỹ lương gộp (Gross):</Text>
-              <Text style={styles.payrollSubVal}>
-                {formatCurrency(payroll.totalGrossSalary)}
-              </Text>
-            </View>
-            <View style={styles.divider} />
-            <View style={styles.payrollRow}>
-              <Text style={styles.payrollKey}>Tổng giờ OT toàn công ty:</Text>
-              <Text style={[styles.payrollVal, { color: '#D97706' }]}>
-                {overtime.totalHours || 0} giờ ({overtime.totalRequests || 0} ca)
-              </Text>
-            </View>
-          </View>
-        </View>
-
         {/* 5. Phân Bổ Nhân Sự Theo Phòng Ban */}
         {departments.length > 0 && (
           <View style={styles.section}>
@@ -337,7 +286,7 @@ const styles = ScaledSheet.create({
     backgroundColor: '#FEF2F2',
   },
   welcomeCard: {
-    backgroundColor: '#0F172A',
+    backgroundColor: 'transparent',
     borderRadius: '16@ms',
     padding: '16@ms',
     flexDirection: 'row',
@@ -347,13 +296,13 @@ const styles = ScaledSheet.create({
   },
   welcomeSub: {
     fontSize: '11@ms',
-    color: '#94A3B8',
+    color: '#000000',
     marginBottom: '2@vs',
   },
   welcomeName: {
     fontSize: '16@ms',
     fontWeight: '800',
-    color: '#FFFFFF',
+    color: '#94A3B8',
   },
   adminBadge: {
     flexDirection: 'row',

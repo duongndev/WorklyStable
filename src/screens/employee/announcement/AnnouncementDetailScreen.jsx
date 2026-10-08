@@ -253,10 +253,6 @@ const AnnouncementDetailScreen = () => {
                 </Text>
               </View>
             </View>
-            <View style={styles.socketLiveBadge}>
-              <View style={styles.socketLiveDot} />
-              <Text style={styles.socketLiveText}>Live</Text>
-            </View>
           </View>
 
           {/* Article Title */}
@@ -501,26 +497,6 @@ const styles = ScaledSheet.create({
   categoryText: {
     fontSize: '11@ms',
     fontWeight: '700',
-  },
-  socketLiveBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#DCFCE7',
-    paddingHorizontal: '6@ms',
-    paddingVertical: '2@vs',
-    borderRadius: '8@ms',
-  },
-  socketLiveDot: {
-    width: '5@ms',
-    height: '5@ms',
-    borderRadius: '2.5@ms',
-    backgroundColor: '#16A34A',
-    marginRight: '3@ms',
-  },
-  socketLiveText: {
-    fontSize: '9@ms',
-    fontWeight: '700',
-    color: '#16A34A',
   },
   titleText: {
     fontSize: '18@ms',

@@ -257,17 +257,6 @@ const AdminAnnouncementDetailScreen = () => {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
         >
-          {/* Admin Control Banner */}
-          <View style={styles.adminBannerRow}>
-            <View style={styles.adminBadge}>
-              <MaterialCommunityIcons name="shield-crown" size={16} color="#D97706" />
-              <Text style={styles.adminBadgeText}>CHẾ ĐỘ QUẢN TRỊ VIÊN</Text>
-            </View>
-            <View style={styles.socketLiveBadge}>
-              <View style={styles.socketLiveDot} />
-              <Text style={styles.socketLiveText}>Real-time Live</Text>
-            </View>
-          </View>
 
           {/* Category Tag */}
           <View style={styles.topRow}>
@@ -536,26 +525,6 @@ const styles = ScaledSheet.create({
     fontWeight: '800',
     color: '#D97706',
     marginLeft: '4@ms',
-  },
-  socketLiveBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#DCFCE7',
-    paddingHorizontal: '8@ms',
-    paddingVertical: '4@vs',
-    borderRadius: '12@ms',
-  },
-  socketLiveDot: {
-    width: '6@ms',
-    height: '6@ms',
-    borderRadius: '3@ms',
-    backgroundColor: '#16A34A',
-    marginRight: '4@ms',
-  },
-  socketLiveText: {
-    fontSize: '10@ms',
-    fontWeight: '700',
-    color: '#16A34A',
   },
   topRow: {
     flexDirection: 'row',

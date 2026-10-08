@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useEffect } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -6,20 +6,14 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
-  Modal,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useSelector, useDispatch } from 'react-redux';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { ScaledSheet } from 'react-native-size-matters';
 
 import { logoutAction } from '../../../redux/auth/authAction';
-import COLORS from '../../../assets/styles/color';
-
-// Import Face ID
-import FaceAttendanceModal from '../../../components/employee/attendance/FaceAttendanceModal';
-import { registerFaceApi, getFaceStatusApi } from '../../../api/attendanceAPI';
 
 const MENU_GROUPS = [
   {
@@ -44,7 +38,6 @@ const MENU_GROUPS = [
       { id: 'profile', icon: 'account-edit-outline', label: 'Thông tin cá nhân', color: '#0284C7', route: 'EditProfile' },
       { id: 'change_password', icon: 'shield-lock-outline', label: 'Đổi mật khẩu', color: '#7C3AED', route: 'ChangePassword' },
       { id: 'biometrics', icon: 'fingerprint', label: 'Đăng nhập sinh trắc học', color: '#059669', route: 'BiometricSetup' },
-      { id: 'face_setup', icon: 'face-recognition', label: 'Dữ liệu khuôn mặt chấm công', color: '#10B981', action: 'face_setup' },
     ]
   }
 ];
@@ -74,31 +67,6 @@ const ProfileScreen = () => {
   const unreadCount = useSelector((state) => state.notification?.unreadCount || 0);
 
   const [loggingOut, setLoggingOut] = useState(false);
-  const [showFaceModal, setShowFaceModal] = useState(false);
-  const [faceRegistered, setFaceRegistered] = useState(false);
-
-  useEffect(() => {
-    getFaceStatusApi()
-      .then(res => {
-        if (res.data?.isRegistered) setFaceRegistered(true);
-      })
-      .catch(console.log);
-  }, []);
-
-  const handleRegisterFace = async (extraData) => {
-    try {
-      await registerFaceApi({
-        photoUrl: extraData.photoUrl,
-        faceDescriptor: extraData.faceDescriptor,
-      });
-      setFaceRegistered(true);
-      Alert.alert('Thành công', 'Đăng ký khuôn mặt thành công!');
-    } catch (error) {
-      Alert.alert('Lỗi', error.message || 'Không thể đăng ký khuôn mặt');
-    } finally {
-      setShowFaceModal(false);
-    }
-  };
 
   const handleLogout = useCallback(() => {
     Alert.alert(
@@ -126,9 +94,7 @@ const ProfileScreen = () => {
   }, [dispatch, navigation]);
 
   const handleMenuPress = (item) => {
-    if (item.action === 'face_setup') {
-      setShowFaceModal(true);
-    } else if (item.route) {
+    if (item.route) {
       navigation.navigate(item.route);
     }
   };
@@ -153,22 +119,6 @@ const ProfileScreen = () => {
           </TouchableOpacity>
         </View>
       </View>
-
-      {showFaceModal && (
-        <Modal
-          visible={showFaceModal}
-          transparent
-          animationType="slide"
-          onRequestClose={() => setShowFaceModal(false)}
-        >
-          <FaceAttendanceModal
-            visible={showFaceModal}
-            type="register"
-            onSuccess={handleRegisterFace}
-            onClose={() => setShowFaceModal(false)}
-          />
-        </Modal>
-      )}
 
       <ScrollView
         style={styles.scrollView}
@@ -219,7 +169,6 @@ const ProfileScreen = () => {
                   icon={item.icon}
                   label={item.label}
                   color={item.color}
-                  extraLabel={item.id === 'face_setup' && faceRegistered ? 'Đã có dữ liệu ✓' : null}
                   onPress={() => handleMenuPress(item)}
                   isLast={index === group.items.length - 1}
                 />
@@ -244,6 +193,9 @@ const ProfileScreen = () => {
             </>
           )}
         </TouchableOpacity>
+
+        {/* Version text */}
+        <Text style={styles.versionText}>Phiên bản 1.0.0</Text>
       </ScrollView>
     </View>
   );
@@ -465,7 +417,7 @@ const styles = ScaledSheet.create({
     fontSize: '12@ms',
     fontWeight: '500',
     color: '#94A3B8',
-    marginBottom: '24@vs',
+    marginVertical: '20@vs',
   },
 });
 
