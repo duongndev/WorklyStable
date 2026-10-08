@@ -227,7 +227,7 @@ const SplashScreen = () => {
       checkTokenAndNavigate();
     }, profileLoading ? 1000 : 2000);
     return () => clearTimeout(timerId);
-  }, [dispatch, tokens, profileLoading, navigation]);
+  }, [dispatch, tokens, profileLoading, navigation, cachedUser]);
 
   const handleUnknownRole = (role) => {
     Alert.alert('Cảnh báo', 'Vai trò người dùng không xác định. Vui lòng liên hệ quản trị viên.');

@@ -5,11 +5,14 @@ import {
   Text,
   TouchableOpacity,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { ScaledSheet } from 'react-native-size-matters';
 import { useAttendance } from '../../../contexts/AttendanceContext';
+import { watchDeviceLocation } from '../../../services/locationService';
+import { checkLocationPermission, requestLocationPermission } from '../../../services/permissionService';
 
 const formatTime = (date) => {
   if (!date) return '--:--';
@@ -28,18 +31,79 @@ const formatDate = (date) => {
 };
 
 const ShiftCard = ({ onAttendancePress }) => {
-  const { checkedIn, checkInTime, handleCheckIn, handleCheckOut, checkLoading } = useAttendance();
+  const {
+    checkedIn,
+    isCheckedIn,
+    isCheckedOut,
+    checkInTime,
+    checkOutTime,
+    handleCheckIn,
+    handleCheckOut,
+    checkLoading,
+    currentAttendance,
+    workplace,
+  } = useAttendance();
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [currentLocation, setCurrentLocation] = useState('Đang lấy vị trí thiết bị...');
 
-  // Cập nhật thời gian thực mỗi giây cho đồng hồ sống động
+  // Cập nhật thời gian thực mỗi giây cho đồng hồ
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
+  // Tự động làm mới khi thiết bị thay đổi vị trí (Live GPS Watch)
+  useEffect(() => {
+    let isMounted = true;
+    let unsubscribe = null;
+
+    const startTracking = async () => {
+      let hasPerm = await checkLocationPermission();
+      if (!hasPerm) {
+        hasPerm = await requestLocationPermission();
+      }
+      if (!isMounted) return;
+
+      if (hasPerm) {
+        unsubscribe = watchDeviceLocation((liveName) => {
+          if (isMounted && liveName) {
+            setCurrentLocation(liveName);
+          }
+        });
+      } else {
+        setCurrentLocation('Chưa cấp quyền vị trí');
+      }
+    };
+
+    startTracking();
+
+    return () => {
+      isMounted = false;
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    };
+  }, []);
+
+  const timeStr = formatTime(currentTime);
+  const secondsStr = String(currentTime.getSeconds()).padStart(2, '0');
+  const checkInTimeStr = formatTime(checkInTime);
+  const checkOutTimeStr = formatTime(checkOutTime);
+  const dateStr = formatDate(currentTime);
+
   const handlePress = useCallback(() => {
+    if (isCheckedOut) {
+      Alert.alert(
+        'Ca làm việc đã kết thúc',
+        `Bạn đã hoàn thành chấm công cho hôm nay.\n\n• Giờ vào: ${checkInTimeStr}\n• Giờ ra: ${checkOutTimeStr}`,
+        [{ text: 'Đóng', style: 'default' }],
+      );
+      return;
+    }
+
+    const actionType = checkedIn ? 'checkout' : 'checkin';
     if (onAttendancePress) {
-      onAttendancePress(checkedIn ? 'checkout' : 'checkin');
+      onAttendancePress(actionType);
     } else {
       if (checkedIn) {
         handleCheckOut();
@@ -47,12 +111,27 @@ const ShiftCard = ({ onAttendancePress }) => {
         handleCheckIn();
       }
     }
-  }, [checkedIn, onAttendancePress, handleCheckIn, handleCheckOut]);
+  }, [isCheckedOut, checkedIn, onAttendancePress, handleCheckIn, handleCheckOut, checkInTimeStr, checkOutTimeStr]);
 
-  const timeStr = formatTime(currentTime);
-  const secondsStr = String(currentTime.getSeconds()).padStart(2, '0');
-  const checkInTimeStr = formatTime(checkInTime);
-  const dateStr = formatDate(currentTime);
+  const buttonIcon = isCheckedOut
+    ? 'check-circle'
+    : checkedIn
+      ? 'logout-variant'
+      : 'login-variant';
+
+  const buttonIconColor = isCheckedOut
+    ? '#15803D'
+    : checkedIn
+      ? '#DC2626'
+      : '#2563EB';
+
+  const buttonLabel = checkLoading
+    ? 'Đang định vị GPS...'
+    : isCheckedOut
+      ? 'Đã hoàn thành ca hôm nay'
+      : checkedIn
+        ? 'Check-out kết thúc ca (GPS)'
+        : 'Chấm công vào ca (GPS)';
 
   return (
     <View style={styles.shiftCard}>
@@ -63,14 +142,28 @@ const ShiftCard = ({ onAttendancePress }) => {
       {/* Top Meta: Date + Shift Badge */}
       <View style={styles.shiftTopRow}>
         <View style={styles.shiftPill}>
-          <Ionicons name="sunny" size={14} color="#FBBF24" />
-          <Text style={styles.shiftPillText}>Ca sáng (08:00 – 17:00)</Text>
+          <Text style={styles.shiftPillText}>Ca làm việc (08:30 – 17:30)</Text>
         </View>
 
         <View style={[styles.statusPill, checkedIn && styles.statusPillActive]}>
-          <View style={[styles.statusDot, { backgroundColor: checkedIn ? '#34D399' : '#FBBF24' }]} />
+          <View
+            style={[
+              styles.statusDot,
+              {
+                backgroundColor: isCheckedOut
+                  ? '#3B82F6'
+                  : checkedIn
+                    ? '#34D399'
+                    : '#FBBF24',
+              },
+            ]}
+          />
           <Text style={styles.statusPillText}>
-            {checkedIn ? 'Đang trong ca' : 'Chưa vào ca'}
+            {isCheckedOut
+              ? 'Đã chấm công'
+              : checkedIn
+                ? 'Đang làm'
+                : 'Chưa chấm công'}
           </Text>
         </View>
       </View>
@@ -82,58 +175,64 @@ const ShiftCard = ({ onAttendancePress }) => {
       </View>
       <Text style={styles.dateText}>{dateStr}</Text>
 
-      {/* Info Row */}
-      <View style={styles.infoRow}>
-        <View style={styles.infoItem}>
-          <MaterialCommunityIcons name="login-variant" size={18} color="#34D399" />
-          <View style={styles.infoTextGroup}>
-            <Text style={styles.infoLabel}>Giờ vào</Text>
-            <Text style={[styles.infoValue, { color: checkedIn ? '#34D399' : '#FFFFFF' }]}>
-              {checkInTimeStr}
-            </Text>
-          </View>
+      {/* 1. Vị trí thành 1 dòng nằm trên (Tự động cập nhật khi thay đổi vị trí) */}
+      <View style={styles.locationRow}>
+        <Text style={styles.locationLabel}>Vị trí:</Text>
+        <Text style={styles.locationValue} numberOfLines={1} ellipsizeMode="tail">
+          {currentLocation}
+        </Text>
+      </View>
+
+      {/* 2. Giờ vào, Giờ ra thành hàng ngang cân đối (chỉ hiển thị label) */}
+      <View style={styles.timeInfoRow}>
+        <View style={styles.timeInfoItem}>
+          <Text style={styles.timeLabel}>Giờ vào</Text>
+          <Text style={[styles.timeValue, { color: isCheckedIn ? '#34D399' : '#FFFFFF' }]}>
+            {checkInTimeStr}
+          </Text>
         </View>
 
-        <View style={styles.infoDivider} />
+        <View style={styles.timeDivider} />
 
-        <View style={styles.infoItem}>
-          <MaterialCommunityIcons name="logout-variant" size={18} color="#F87171" />
-          <View style={styles.infoTextGroup}>
-            <Text style={styles.infoLabel}>Giờ ra</Text>
-            <Text style={styles.infoValue}>--:--</Text>
-          </View>
-        </View>
-
-        <View style={styles.infoDivider} />
-
-        <View style={styles.infoItem}>
-          <MaterialCommunityIcons name="map-marker-radius" size={18} color="#93C5FD" />
-          <View style={styles.infoTextGroup}>
-            <Text style={styles.infoLabel}>Vị trí</Text>
-            <Text style={styles.infoValue} numberOfLines={1}>Trụ sở chính</Text>
-          </View>
+        <View style={styles.timeInfoItem}>
+          <Text style={styles.timeLabel}>Giờ ra</Text>
+          <Text style={[styles.timeValue, { color: isCheckedOut ? '#F87171' : '#FFFFFF' }]}>
+            {checkOutTimeStr}
+          </Text>
         </View>
       </View>
 
-      <TouchableOpacity
-        style={[styles.checkInButton, checkedIn && styles.checkInButtonDone, checkLoading && { opacity: 0.7 }]}
+      {/* Action Button: Chấm công vào ca / Check-out ra ca / Thông báo hoàn thành ca */}
+      {/* <TouchableOpacity
+        style={[
+          styles.checkInButton,
+          checkedIn && styles.checkInButtonCheckout,
+          isCheckedOut && styles.checkInButtonFinished,
+          checkLoading && { opacity: 0.7 },
+        ]}
         onPress={handlePress}
-        activeOpacity={0.85}
+        activeOpacity={0.8}
         disabled={checkLoading}
       >
         {checkLoading ? (
-          <ActivityIndicator size="small" color={checkedIn ? '#059669' : '#2563EB'} />
+          <ActivityIndicator size="small" color={buttonIconColor} />
         ) : (
           <MaterialCommunityIcons
-            name={checkedIn ? 'checkbox-marked-circle-outline' : 'fingerprint'}
+            name={buttonIcon}
             size={22}
-            color={checkedIn ? '#059669' : '#2563EB'}
+            color={buttonIconColor}
           />
         )}
-        <Text style={[styles.checkInText, checkedIn && styles.checkInTextDone]}>
-          {checkLoading ? 'Đang xử lý...' : (checkedIn ? 'Check-out Kết Thúc Ca' : 'Chấm Công Ngay Bây Giờ')}
+        <Text
+          style={[
+            styles.checkInText,
+            checkedIn && styles.checkInTextCheckout,
+            isCheckedOut && styles.checkInTextFinished,
+          ]}
+        >
+          {buttonLabel}
         </Text>
-      </TouchableOpacity>
+      </TouchableOpacity> */}
     </View>
   );
 };
@@ -234,39 +333,59 @@ const styles = ScaledSheet.create({
     fontWeight: '500',
     textAlign: 'center',
     marginTop: '2@vs',
-    marginBottom: '14@vs',
+    marginBottom: '10@vs',
   },
-  infoRow: {
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: '12@ms',
+    paddingVertical: '8@vs',
+    paddingHorizontal: '12@ms',
+    marginBottom: '10@vs',
+  },
+  locationLabel: {
+    fontSize: '14@ms',
+    color: 'rgba(255, 255, 255, 0.75)',
+    fontWeight: '600',
+    marginRight: '6@ms',
+  },
+  locationValue: {
+    flex: 1,
+    fontSize: '12@ms',
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  timeInfoRow: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(255, 255, 255, 0.12)',
     borderRadius: '16@ms',
-    padding: '12@ms',
+    paddingVertical: '12@vs',
+    paddingHorizontal: '12@ms',
     marginBottom: '16@vs',
   },
-  infoItem: {
+  timeInfoItem: {
     flex: 1,
-    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  infoTextGroup: {
-    marginLeft: '6@ms',
-  },
-  infoLabel: {
-    fontSize: '10@ms',
+  timeLabel: {
+    fontSize: '14@ms',
     color: 'rgba(255, 255, 255, 0.65)',
+    fontWeight: '600',
+    marginBottom: '3@vs',
   },
-  infoValue: {
-    fontSize: '13@ms',
-    fontWeight: '700',
+  timeValue: {
+    fontSize: '16@ms',
+    fontWeight: '800',
     color: '#FFFFFF',
-    marginTop: '1@vs',
+    letterSpacing: 0.5,
   },
-  infoDivider: {
+  timeDivider: {
     width: 1,
-    height: '24@vs',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    marginHorizontal: '6@ms',
+    height: '28@vs',
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
   },
   checkInButton: {
     backgroundColor: '#FFFFFF',
@@ -281,10 +400,16 @@ const styles = ScaledSheet.create({
     shadowRadius: 6,
     elevation: 3,
   },
-  checkInButtonDone: {
-    backgroundColor: '#DCFCE7',
+  checkInButtonCheckout: {
+    backgroundColor: '#FEF2F2',
     borderWidth: 1,
-    borderColor: '#86EFAC',
+    borderColor: '#FECACA',
+  },
+  checkInButtonFinished: {
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    opacity: 0.95,
   },
   checkInText: {
     color: '#2563EB',
@@ -292,8 +417,11 @@ const styles = ScaledSheet.create({
     fontSize: '14@ms',
     marginLeft: '8@ms',
   },
-  checkInTextDone: {
-    color: '#059669',
+  checkInTextCheckout: {
+    color: '#DC2626',
+  },
+  checkInTextFinished: {
+    color: '#15803D',
   },
 });
 

@@ -91,7 +91,7 @@ const CustomTabBar = ({ state, navigation }) => {
   const routeState = currentRoute?.state;
   const isChildScreen = routeState && routeState.index > 0;
   const currentRouteName = currentRoute?.name;
-  const { checkedIn, handleCheckIn, handleCheckOut } = useAttendance();
+  const { checkedIn, isCheckedOut, openSheet } = useAttendance();
 
   if (isChildScreen) return null;
 
@@ -131,7 +131,13 @@ const CustomTabBar = ({ state, navigation }) => {
         {/* Nút chấm công nổi */}
         <TouchableOpacity
           style={styles.attendanceButton}
-          onPress={() => checkedIn ? handleCheckOut() : handleCheckIn()}
+          onPress={() => {
+            if (isCheckedOut) {
+              Alert.alert('Đã hoàn thành ca', 'Bạn đã hoàn tất chấm công cho ca làm việc hôm nay.');
+              return;
+            }
+            openSheet(checkedIn ? 'checkout' : 'checkin');
+          }}
           activeOpacity={0.8}
         >
           <View style={styles.attendanceButtonInner}>
@@ -195,8 +201,24 @@ const AttendanceSheetWrapper = memo(() => {
       visible={showSheet}
       type={sheetType}
       onClose={closeSheet}
-      onSuccess={(data) => (sheetType === 'checkin' ? handleCheckIn(data) : handleCheckOut(data))}
-      onError={(msg) => Alert.alert('Lỗi', msg)}
+      onSuccess={async (data) => {
+        const result = sheetType === 'checkin' ? await handleCheckIn(data) : await handleCheckOut(data);
+        setTimeout(() => {
+          Alert.alert(
+            'Thành công',
+            sheetType === 'checkin'
+              ? 'Đã ghi nhận chấm công vào qua định vị GPS!'
+              : 'Đã ghi nhận chấm công ra qua định vị GPS!',
+            [{ text: 'Xác nhận' }],
+          );
+        }, 200);
+        return result;
+      }}
+      onError={(msg) => {
+        setTimeout(() => {
+          Alert.alert('Chưa thể chấm công', msg, [{ text: 'Đóng' }]);
+        }, 200);
+      }}
     />
   );
 });

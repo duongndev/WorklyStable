@@ -1,52 +1,58 @@
-import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
+// src/contexts/AttendanceContext.jsx
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import Geolocation from 'react-native-geolocation-service';
 import moment from 'moment';
 import {
   checkInAction,
   checkOutAction,
-  getAttendanceByDateAction,
+  getMyAttendanceTodayAction,
+  getAttendanceHistoryAction,
 } from '../redux/attendance/attendanceAction';
 import { requestLocationPermission } from '../services/permissionService';
+import { reverseGeocode } from '../services/locationService';
 
 const AttendanceContext = createContext(null);
 
 export const AttendanceProvider = ({ children }) => {
   const dispatch = useDispatch();
-  const { todayRecord } = useSelector((state) => state.attendance);
+  const { todayRecord, loadingCheck } = useSelector((state) => state.attendance || {});
 
-  const [checkedIn, setCheckedIn] = useState(false);
   const [showSheet, setShowSheet] = useState(false);
   const [sheetType, setSheetType] = useState('checkin');
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [checkInTime, setCheckInTime] = useState(null);
   const [checkLoading, setCheckLoading] = useState(false);
   const timeoutRef = useRef(null);
 
-  // ── Khôi phục trạng thái hôm nay từ server khi mở màn hình ──
-  useEffect(() => {
-    const today = moment().format('YYYY-MM-DD');
-    dispatch(getAttendanceByDateAction(today));
+  // ── Khôi phục trạng thái chấm công hôm nay từ server ──
+  const fetchTodayStatus = useCallback(() => {
+    dispatch(getMyAttendanceTodayAction());
   }, [dispatch]);
 
-  // todayRecord (từ redux) là nguồn dữ liệu duy nhất cho trạng thái check-in
   useEffect(() => {
-    if (!todayRecord) {
-      setCheckedIn(false);
-      return;
-    }
-    const today = moment().format('YYYY-MM-DD');
-    const isToday = todayRecord.date === today;
-    setCheckedIn(
-      isToday &&
-        todayRecord.isCheckedIn === true &&
-        todayRecord.isCheckedOut !== true,
-    );
-    if (isToday && todayRecord.isCheckedIn && todayRecord.checkInTime) {
-      setCheckInTime(new Date(todayRecord.checkInTime));
-    }
+    fetchTodayStatus();
+  }, [fetchTodayStatus]);
+
+  // ── Trích xuất bản ghi chấm công từ todayRecord ──
+  const currentAttendance = useMemo(() => {
+    if (!todayRecord) return null;
+    // Server có thể trả về { date, attendance, workplace } hoặc trả trực tiếp attendance
+    return todayRecord.attendance || (todayRecord.checkIn ? todayRecord : null);
   }, [todayRecord]);
 
+  // Đã check-in (có giờ vào)
+  const isCheckedIn = Boolean(currentAttendance?.checkIn?.time);
+  // Đã check-out (có cả giờ vào và giờ ra)
+  const isCheckedOut = Boolean(currentAttendance?.checkIn?.time && currentAttendance?.checkOut?.time);
+
+  // Trạng thái đang trong ca làm việc: đã check-in nhưng chưa check-out
+  const checkedIn = isCheckedIn && !isCheckedOut;
+
+  // Thời gian giờ vào & giờ ra thực tế
+  const checkInTime = currentAttendance?.checkIn?.time ? new Date(currentAttendance.checkIn.time) : null;
+  const checkOutTime = currentAttendance?.checkOut?.time ? new Date(currentAttendance.checkOut.time) : null;
+
+  // ── Lấy vị trí GPS của nhân viên ──
   const getCurrentPosition = useCallback(async () => {
     const hasPermission = await requestLocationPermission();
     if (!hasPermission) {
@@ -55,34 +61,49 @@ export const AttendanceProvider = ({ children }) => {
 
     return new Promise((resolve, reject) => {
       Geolocation.getCurrentPosition(
-        (position) => {
+        async (position) => {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          const addr = await reverseGeocode(lat, lng);
           resolve({
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-            location: 'Văn phòng Workly',
+            latitude: lat,
+            longitude: lng,
+            accuracy: position.coords.accuracy,
+            location: addr || 'Vị trí làm việc GPS',
+            address: addr || '',
+            method: 'gps',
           });
         },
         (err) => {
-          console.log('Lỗi lấy vị trí GPS chính xác:', err);
-          // Thử lấy vị trí mạng fallback nếu GPS vệ tinh chưa kịp khóa
+          console.warn('Lỗi lấy GPS độ chính xác cao, thử chế độ mạng fallback:', err);
           Geolocation.getCurrentPosition(
-            (fallbackPos) => {
+            async (fallbackPos) => {
+              const lat = fallbackPos.coords.latitude;
+              const lng = fallbackPos.coords.longitude;
+              const addr = await reverseGeocode(lat, lng);
               resolve({
-                latitude: fallbackPos.coords.latitude,
-                longitude: fallbackPos.coords.longitude,
-                location: 'Văn phòng Workly',
+                latitude: lat,
+                longitude: lng,
+                accuracy: fallbackPos.coords.accuracy,
+                location: addr || 'Vị trí làm việc GPS (mạng)',
+                address: addr || '',
+                method: 'gps',
               });
             },
             (fallbackErr) => {
-              console.log('Lỗi fallback GPS:', fallbackErr);
-              reject(new Error('Không thể xác định vị trí. Vui lòng bật định vị GPS trên thiết bị và thử lại.'));
+              console.error('Lỗi định vị vị trí GPS:', fallbackErr);
+              reject(
+                new Error(
+                  'Không thể xác định vị trí GPS. Vui lòng bật Định vị / Vị trí trên thiết bị và thử lại.',
+                ),
+              );
             },
             { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 },
           );
         },
         {
           enableHighAccuracy: true,
-          timeout: 10000,
+          timeout: 12000,
           maximumAge: 10000,
         },
       );
@@ -104,54 +125,81 @@ export const AttendanceProvider = ({ children }) => {
     }
   }, []);
 
-  // Trả promise: AttendanceSheet sẽ đợi API xong mới hiện màn hình thành công.
-  const handleCheckIn = useCallback(async (extraData = {}) => {
-    setCheckLoading(true);
-    try {
-      let geoData = {};
+  // ── Xử lý Check-in bằng vị trí GPS ──
+  const handleCheckIn = useCallback(
+    async (extraData = {}) => {
+      setCheckLoading(true);
       try {
-        geoData = await getCurrentPosition();
-      } catch (err) {
-        if (extraData.method !== 'face') throw err;
-      }
-      const payload = { ...geoData, ...extraData };
-      const result = await dispatch(checkInAction(payload)).unwrap();
-      setCurrentTime(new Date());
-      return result;
-    } finally {
-      setCheckLoading(false);
-    }
-  }, [dispatch, getCurrentPosition]);
+        const geoData = await getCurrentPosition();
+        const payload = {
+          ...geoData,
+          ...extraData,
+          method: 'gps',
+        };
 
-  const handleCheckOut = useCallback(async (extraData = {}) => {
-    setCheckLoading(true);
-    try {
-      let geoData = {};
-      try {
-        geoData = await getCurrentPosition();
-      } catch (err) {
-        if (extraData.method !== 'face') throw err;
+        const result = await dispatch(checkInAction(payload)).unwrap();
+        setCurrentTime(new Date());
+
+        // Làm mới dữ liệu hôm nay và lịch sử
+        dispatch(getMyAttendanceTodayAction());
+        const now = moment();
+        dispatch(getAttendanceHistoryAction({ month: now.month() + 1, year: now.year() }));
+
+        return result;
+      } finally {
+        setCheckLoading(false);
       }
-      const payload = { ...geoData, ...extraData };
-      const result = await dispatch(checkOutAction(payload)).unwrap();
-      setCurrentTime(new Date());
-      return result;
-    } finally {
-      setCheckLoading(false);
-    }
-  }, [dispatch, getCurrentPosition]);
+    },
+    [dispatch, getCurrentPosition],
+  );
+
+  // ── Xử lý Check-out bằng vị trí GPS ──
+  const handleCheckOut = useCallback(
+    async (extraData = {}) => {
+      setCheckLoading(true);
+      try {
+        const geoData = await getCurrentPosition();
+        const payload = {
+          ...geoData,
+          ...extraData,
+          method: 'gps',
+        };
+
+        const result = await dispatch(checkOutAction(payload)).unwrap();
+        setCurrentTime(new Date());
+
+        // Làm mới dữ liệu hôm nay và lịch sử
+        dispatch(getMyAttendanceTodayAction());
+        const now = moment();
+        dispatch(getAttendanceHistoryAction({ month: now.month() + 1, year: now.year() }));
+
+        return result;
+      } finally {
+        setCheckLoading(false);
+      }
+    },
+    [dispatch, getCurrentPosition],
+  );
 
   const value = {
     checkedIn,
+    isCheckedIn,
+    isCheckedOut,
+    checkInTime,
+    checkOutTime,
+    currentAttendance,
+    todayRecord,
+    workplace: todayRecord?.workplace || null,
     showSheet,
     sheetType,
     currentTime,
-    checkInTime,
-    checkLoading,
+    checkLoading: checkLoading || loadingCheck,
     openSheet,
     closeSheet,
     handleCheckIn,
     handleCheckOut,
+    fetchTodayStatus,
+    getCurrentPosition,
   };
 
   return (
